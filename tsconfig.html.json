@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "module": "system",
+        "diagnostics": true,
+        "sourceMap": true,
+        "declaration": true,
+        "outDir": "dist",
+        "outFile":"dist/merged.js",
+        "noImplicitAny": true
+    },
+    "exclude": [
+        "node_modules",
+        "dist",
+        "tmp",
+        "test"
+    ]
+}

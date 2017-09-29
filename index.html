@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <link href="style.css" rel="stylesheet" type="text/css" />
+  <script src="system.js"></script>
+  <script src="dist/merged.js"></script>
+  <script>
+    const mod = {};
+
+    function load() {
+      const promises = [];
+      [].forEach((m) => {
+        const p = System.import(m)
+          .then((module) => mod[m] = module);
+        promises.push(p);
+      });
+      Promise.all(promises)
+        .then(() => {});
+    }
+  </script>
+</head>
+
+<body onload="load()">
+</body>
+
+</html>

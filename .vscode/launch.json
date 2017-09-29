@@ -1,0 +1,50 @@
+{
+	"version": "0.1.0",
+	"configurations": [
+		{
+			"name": "Run",
+			"type": "node",
+			"request": "launch",
+			"program": "run",
+			"preLaunchTask": "tsc",
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outFiles": ["${workspaceRoot}/dist/**/*.js"],
+			"args": [],
+			"cwd": "${workspaceRoot}",
+			"runtimeExecutable": null,
+			"env": {
+				"NODE_ENV": "production"
+			},
+			"skipFiles": [
+				"node_modules/**/*.js",
+				"<node_internals>/**/*.js"
+			]
+		},
+		{
+			"name": "Run mocha",
+			"type": "node",
+			"request": "launch",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"preLaunchTask": "tsc",
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"args": [
+				"dist/test/**/*Spec.js",
+				"--require",
+				"source-map-support/register"
+			],
+			"outFiles": ["${workspaceRoot}/dist/**/*.js"],
+			"cwd": "${workspaceRoot}",
+			"runtimeExecutable": null,
+			"env": {
+				"NODE_ENV": "testing"
+			},
+			"skipFiles": [
+				"node_modules/**/*.js",
+				"<node_internals>/**/*.js"
+			]
+		}
+	]
+}
