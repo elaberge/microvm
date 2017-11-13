@@ -76,7 +76,7 @@ describe("Program", () => {
       },
     ],
     keyPress: [
-      { key: JoyCodes.NONE },
+      { key: JoyCodes.NONE, nbCalls:3 },
       { key: JoyCodes.UP },
     ],
   };

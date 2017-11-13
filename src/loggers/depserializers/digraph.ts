@@ -23,6 +23,8 @@ export class DigraphDependencySerializer implements IDependencySerializer {
   private curEntry: DigraphSerializerSet[];
   private curSet: DigraphSerializerSet;
 
+  private links = new Set<string>();
+
   private getEntryId(entry: IDepOperand) {
     if (this.idMap.has(entry) == false)
       this.idMap.set(entry, this.nextId++);
@@ -84,7 +86,7 @@ export class DigraphDependencySerializer implements IDependencySerializer {
     } else {
       lines.push(this.link(entry, setContent.setContent[0], setContent.message));
     }
-    return lines.join("\n");
+    return lines;
   }
 
   private forEachEntry(entry: IDepOperand, sets: DigraphSerializerSet[]) {
@@ -96,9 +98,9 @@ export class DigraphDependencySerializer implements IDependencySerializer {
       entry = phi;
     }
     sets.forEach((setContent) => {
-      lines.push(this.forEachSet(entry, setContent));
+      lines.push(...this.forEachSet(entry, setContent));
     });
-    return lines.join("\n");
+    return lines;
   }
 
   toString() {
@@ -108,10 +110,18 @@ export class DigraphDependencySerializer implements IDependencySerializer {
     });
 
     this.entryMap.forEach((depSet, entry) => {
-      lines.push(this.forEachEntry(entry, depSet));
+      lines.push(...this.forEachEntry(entry, depSet));
     });
     lines.push("}");
-    return lines.join("\n");
+
+    const usedLines = new Set<string>();
+
+    return lines.filter((l) => {
+      if (usedLines.has(l))
+        return false;
+      usedLines.add(l);
+      return true;
+    }).join("\n");
   }
 
   write(filename: string) {

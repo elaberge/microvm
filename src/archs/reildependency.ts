@@ -194,15 +194,15 @@ export const PreSet:DepLogFn = {
 
   jcc_jump: (logger, a, dst, pc, aF, dstF, pcF) => {
     if (aF.constant() == false) {
+      logger.branch(true, a);
       pcF.link("jcc (Y)", logger, pc, a);
-      logger.branch(true);
     }
   },
 
   jcc_skip: (logger, a, dst, pc, aF, dstF, pcF) => {
     if (aF.constant() == false) {
+      logger.branch(false, a);
       pcF.link("jcc (N)", logger, pc, a);
-      logger.branch(false);
     }
   },
 

@@ -15,18 +15,22 @@ import { REIL } from "../src/archs/reil";
 import Parse = REIL.Parse;
 
 describe("VM", () => {
-  function createArch(outFn?: (c: number, v: number) => void) {
+  function createArch(outFn?: (c: number, v: number) => void, inFn?: (c:number) => number) {
+    outFn = outFn || (() => {});
+    inFn = inFn || ((c) => [1, 2][c]);
     return new Arch({
       registers: ["A", "B"],
       output: outFn,
       nbOut: 1,
+      nbIn: 2,
+      input: inFn,
     });
   }
 
   function testProgram(arch: Arch) {
     return Parse(arch, `
-      STR %1, , A
-      STR %2, , B
+      STR IN0, , A
+      STR IN1, , B
       ADD A, B, A
       STR A, , OUT0
       UNKN , ,
@@ -36,16 +40,9 @@ describe("VM", () => {
   it("runs", () => {
     let val: number;
 
-    const arch = new Arch({
-      registers: ["A", "B"],
-      output: (ch, x) => { val = x; },
-      nbOut: 1,
-    });
-
+    const arch = createArch((ch, x) => { val = x; });
     const vm = new VM(arch);
-
     const program = testProgram(arch);
-
     vm.load(program);
 
     return vm.run()
@@ -55,15 +52,9 @@ describe("VM", () => {
   });
 
   it("logs", () => {
-    const arch = new Arch({
-      registers: ["A", "B"],
-      nbOut: 1,
-    });
-
+    const arch = createArch();
     const vm = new VM(arch);
-
     const program = testProgram(arch);
-
     vm.load(program);
 
     const traces: TraceLogItem[] = [];
@@ -80,8 +71,8 @@ describe("VM", () => {
         expect(traces.length).equals(program.length);
 
         const expected = [
-          "STR %1, , A",
-          "STR %2, , B",
+          "STR IN0, , A",
+          "STR IN1, , B",
           "ADD A, B, A",
           "STR A, , OUT0",
           "UNKN , ,",
@@ -113,14 +104,9 @@ describe("VM", () => {
   });
 
   it("dependencies", () => {
-    const arch = new Arch({
-      registers: ["A", "B"],
-      nbOut: 1,
-    });
+    const arch = createArch();
     const vm = new VM(arch);
-
     const program = testProgram(arch);
-
     vm.load(program);
 
     const logger = new Logger();
@@ -128,31 +114,34 @@ describe("VM", () => {
     logger.join(depLogger.key, depLogger);
     return vm.run(logger)
       .then(() => {
-        const expected = [
-          "A_0 <= add(%1, %2)",
-          "OUT0_0 <= copy(A_0)",
-        ];
+        const expected = new Set([
+          "IN0=1 <=",
+          "IN1=2 <=",
+          "A=3 <= +(IN0=1, IN1=2)",
+          "OUT0=0 <= copy(A=3)",
+        ]);
 
         const serializer = new StringDependencySerializer();
-        depLogger.serialize(serializer);
-        serializer.lines.forEach((msg, index) => {
-          expect(msg).equals(expected[index]);
+        depLogger.serialize(serializer, arch.getOut(0));
+        serializer.lines.forEach((msg) => {
+          expect(expected.has(msg));
+          expected.delete(msg);
         });
+        expect(expected.size).equals(0);
       });
   });
 
   it("loop dependencies", () => {
-    const arch = new Arch({
-      registers: ["A", "B"],
-    });
+
+    const arch = createArch(undefined, (c) => [2,-5][c]);
     const vm = new VM(arch);
 
     const regA = arch.getReg("A");
     const regB = arch.getReg("B");
 
     const program = Parse(arch, `
-        STR %2, , B
-        STR %-5, , A
+        STR IN0, , B
+        STR IN1, , A
       loop:
         ADD B, B, B
         ADD A, %1, A
@@ -167,21 +156,29 @@ describe("VM", () => {
     logger.join(depLogger.key, depLogger);
     return vm.run(logger)
       .then(() => {
-        const expected = [
-          "B_0 <= add(%2, %2)",
-          "B_1 <= add(B_0, B_0), add(B_1, B_1)",
-          "A_0 <= add(%-5, %1)",
-          "A_1 <= add(A_0, %1), add(A_1, %1)",
-          "PC_0 <= jcc(PC=0, A_0)",
-          "PC_1 <= jcc(PC_0, A_1), jcc(PC_1, A_1)",
-        ];
+        const expected = new Set([
+          "PC=0 <=",
+          "IN1=-5 <=",
+          "A=-4 <= + 1(IN1=-5)",
+          "PC=2 <= jcc (Y)(PC=0, A=-4)",
+          "A=-3 <= + 1(A=-4)",
+          "PC=2 <= jcc (Y)(PC=2, A=-3)",
+          "A=-2 <= + 1(A=-3)",
+          "PC=2 <= jcc (Y)(PC=2, A=-2)",
+          "A=-1 <= + 1(A=-2)",
+          "PC=2 <= jcc (Y)(PC=2, A=-1)",
+          "A=0 <= + 1(A=-1)",
+          "PC=5 <= jcc (N)(PC=2, A=0)",
+        ]);
 
         const serializer = new StringDependencySerializer();
-        depLogger.serialize(serializer);
+        depLogger.serialize(serializer, arch.getPCReg());
 
-        serializer.lines.forEach((msg, index) => {
-          expect(msg).equals(expected[index]);
+        serializer.lines.forEach((msg) => {
+          expect(expected.has(msg));
+          expected.delete(msg);
         });
+        expect(expected.size).equals(0);
       });
   });
 });

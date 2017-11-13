@@ -48,13 +48,62 @@ interface IDepSet {
   deps: DepOperand[];
 }
 
+class DepSignature {
+  static map = new Map<string, DepSignature>();
+  static currentBranch = "";
+
+  private items = new Map<string, DepSignature>();
+  private hashes = new Map<string, number>();
+  private branch: string;
+
+  static find(msg: string, deps: DepOperand[]) {
+    const signature = new DepSignature(msg, deps);
+    const signatureKey = signature.toString();
+    if (DepSignature.map.has(signatureKey) == false)
+      DepSignature.map.set(signatureKey, signature);
+    return DepSignature.map.get(signatureKey);
+  }
+
+  public static setBranch(name: string) {
+    DepSignature.currentBranch = name;
+  }
+
+  private constructor(private msg: string, deps: DepOperand[]) {
+    this.branch = DepSignature.currentBranch;
+    /*deps.forEach((r) => {
+      r.depEntry.signature.items.forEach((v, k) => {
+        this.items.set(k, v);
+      });
+      r.depEntry.signature.hashes.forEach((v, k) => {
+        this.hashes.set(k, v);
+      });
+    });*/
+    deps.forEach((r) => {
+      let rSign = r.depEntry.signature;
+      if (rSign == undefined)
+        rSign = DepSignature.find(r.depEntry.msg, r.depEntry.dependencies);
+      this.items.set(r.name, rSign);
+      this.hashes.set(r.name, r.op.hashCode());
+    });
+  }
+
+  public toString() {
+    const str: string[] = [this.branch, this.msg];
+    const sorted = [...this.items.keys()].sort();
+    sorted.forEach((k) => {
+      str.push(`[${k}=${this.hashes.get(k)}]`);
+    });
+    return str.join(",");
+  }
+}
+
 class DepEntry {
-  static map = new Map<string, DepEntry>();
+  static map = new Map<DepSignature, DepEntry>();
 
   static find(msg: string, deps: IOperand[]): DepEntry {
     const depOps: DepOperand[] = [];
     deps.forEach((d) => depOps.push(DepOperand.find(d)));
-    const signature = DepEntry.signature(msg, depOps);
+    const signature = DepSignature.find(msg, depOps);
     //return new DepEntry(msg, depOps, signature);
     if (DepEntry.map.has(signature) == false)
       DepEntry.map.set(signature, new DepEntry(msg, depOps, signature));
@@ -62,19 +111,10 @@ class DepEntry {
     return DepEntry.map.get(signature);
   }
 
-  private static signature(msg: string, deps: DepOperand[]) {
-    const items: string[] = [msg];
-    const sorted = deps.sort((a, b) => a.name.localeCompare(b.name));
-    sorted.forEach((r) => {
-      items.push(`${r.name}=${r.op.hashCode()}:${r.depEntry.signature}`);
-    });
-    return items.join(",");
-  }
-
   private constructor(
     public msg: string,
     public dependencies: DepOperand[],
-    public signature: string,
+    public signature: DepSignature,
   ) {}
 }
 
@@ -148,7 +188,7 @@ class DepOperand implements IDepOperand, IOpExtension {
     const id = [this.name];
     //if (this.constant())
       id.push("=", this._val.toString());
-    //id.push(" ", this.depEntry.signature);
+    //id.push(" ", this.depEntry.signature.toString());
     return id.join("");
   }
 
@@ -160,12 +200,32 @@ class DepOperand implements IDepOperand, IOpExtension {
 
 export class DependencyLog extends LoggerExtension {
   private postCmd:(()=>void)[] = [];
+  private statusDump:(string|number)[][] = [];
 
   constructor(arch: Arch) {
     super(OpKey);
   }
 
-  branch(taken: boolean): void {
+  branch(taken: boolean, branchDep: IOperand): void {
+    const values:any[] = [];
+    this.statusDump.forEach((entry) => {
+      values.push(`${entry[0]}:${entry[1]}`);
+    });
+
+    DepSignature.setBranch(values.join(","));
+  }
+
+  beforeExecute(arch: Arch): void {
+    this.statusDump.length = 0;
+
+    const status = arch.status();
+    const keys = [...status.keys()].sort();
+    keys.forEach((k) => {
+      const op = status.get(k);
+      const val = op.hashCode();
+      if (val != 0)
+        this.statusDump.push([k, val]);
+    });
   }
 
   afterExecute(arch: Arch, running: boolean): void {

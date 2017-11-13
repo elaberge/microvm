@@ -317,6 +317,10 @@ export namespace REIL {
     if (memAddr != null)
       return arch.getMem(parseInt(memAddr[1]));
 
+    const inChannel = desc.match(/IN(\d+)/);
+    if (inChannel != null)
+      return arch.getIn(parseInt(inChannel[1]));
+
     const outChannel = desc.match(/OUT(\d+)/);
     if (outChannel != null)
       return arch.getOut(parseInt(outChannel[1]));
