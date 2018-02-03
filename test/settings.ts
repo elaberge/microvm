@@ -10,7 +10,8 @@ const DigraphFile: string = "/tmp/t.dot";
 export interface ISettings {
   dumpProgram: boolean,
   logger: (arch: Arch, logger: ILogger) => void,
-  postLog: (arch: Arch, logger: ILogger) => void,
+  postLog: (arch: Arch, logger: ILogger, self: ISettings) => void,
+  labelFilter?: (tag: string) => string;
 }
 
 const SilentSetting: ISettings = {
@@ -62,8 +63,8 @@ const DigraphDepSetting = function (): ISettings {
       depLog = new DependencyLog(arch);
       logger.join(depLog.key, depLog);
     },
-    postLog: (arch, logger) => {
-      const serializer = new DigraphDependencySerializer();
+    postLog: (arch, logger, self) => {
+      const serializer = new DigraphDependencySerializer(self.labelFilter);
       depLog.serialize(serializer, arch.getPCReg());
       console.log(serializer.toString());
       if (DigraphFile)

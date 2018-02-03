@@ -8,8 +8,9 @@ interface DigraphSerializerSet {
 }
 
 class SymbolDepOperand implements IDepOperand {
-  constructor(private str:string) {}
+  constructor(private str: string) { }
   constant() { return true; }
+  special() { return true; }
   string() { return this.str; }
 }
 
@@ -29,6 +30,9 @@ export class DigraphDependencySerializer implements IDependencySerializer {
     if (this.idMap.has(entry) == false)
       this.idMap.set(entry, this.nextId++);
     return `ID_${this.idMap.get(entry)}`;
+  }
+
+  constructor(private labelFilter: (tag: string) => string = (t) => t) {
   }
 
   addRoot(entry: IDepOperand): void {
@@ -58,13 +62,13 @@ export class DigraphDependencySerializer implements IDependencySerializer {
   private labelShape(entry: IDepOperand): string {
     if (entry instanceof SymbolDepOperand)
       return "circle";
-    if (entry.constant())
+    if (entry.constant() || entry.special())
       return "box";
     return "ellipse";
   }
 
   private label(entry: IDepOperand, style = "solid") {
-    return `${this.getEntryId(entry)} [label="${entry.string()}" shape=${this.labelShape(entry)} style=${style}];`
+    return `${this.getEntryId(entry)} [label="${this.labelFilter(entry.string())}" shape=${this.labelShape(entry)} style=${style}];`
   }
 
   private link(src: IDepOperand, dst: IDepOperand, msg: string = undefined) {

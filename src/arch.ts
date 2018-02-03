@@ -10,7 +10,7 @@ export interface ArchConfig {
   registers?: string[],
   output?: (channel: number, x: number) => void,
   nbOut?: number,
-  input?: (channel: number) => number,
+  input?: (channel: number, peek: boolean) => number,
   nbIn?: number,
   mem?: number,
   memVal?: number[],

@@ -170,6 +170,29 @@ describe("Program", () => {
     ["Input sequence", inputSequenceTestSetup],
   ]);
 
+  function joyCodeFilter(prefix: string): (t:string)=>string {
+    const joyMap = new Map<string, string>();
+
+    [ [JoyCodes.START, 'START'],
+      [JoyCodes.SELECT, 'SELECT'],
+      [JoyCodes.B, 'B'],
+      [JoyCodes.A, 'A'],
+      [JoyCodes.DOWN, 'DOWN'],
+      [JoyCodes.UP, 'UP'],
+      [JoyCodes.LEFT, 'LEFT'],
+      [JoyCodes.RIGHT, 'RIGHT'],
+      [JoyCodes.NONE, 'NONE'],
+    ].forEach((item) => {
+      joyMap.set(`${prefix}${item[0]}`, `${item[1]} (${item[0]})`);
+    });
+
+    return (t) => {
+      if (joyMap.has(t))
+        return joyMap.get(t);
+      return t;
+    }
+  }
+
   programMap.forEach((testSetup, name) => {
     describe(name, () => {
       let fn: any = it;
@@ -192,8 +215,9 @@ describe("Program", () => {
               testSetup.expectedOut.shift();
           }
         }
-        function onIn(channel: number) {
+        function onIn(channel: number, peek: boolean) {
           expect(channel).equals(0);
+          if (!peek)
           keyResolve();
           return keyPress;
         }
@@ -210,6 +234,8 @@ describe("Program", () => {
         const vm = new VM(arch);
         const program = testSetup.program.program(arch);
         vm.load(program);
+
+        CurrentSetting.labelFilter = joyCodeFilter("IN0=");
 
         if (CurrentSetting.dumpProgram) {
           const instr: string[] = [];
@@ -255,9 +281,9 @@ describe("Program", () => {
         return vm.run(logger)
           .then(() => {
             expect(testSetup.expectedOut).length(0);
-            CurrentSetting.postLog(arch, logger);
-          });
+            CurrentSetting.postLog(arch, logger, CurrentSetting);
       });
+      }).timeout(10000);
     });
   });
 });

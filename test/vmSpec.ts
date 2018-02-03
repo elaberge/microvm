@@ -15,7 +15,7 @@ import { REIL } from "../src/archs/reil";
 import Parse = REIL.Parse;
 
 describe("VM", () => {
-  function createArch(outFn?: (c: number, v: number) => void, inFn?: (c:number) => number) {
+  function createArch(outFn?: (c: number, v: number) => void, inFn?: (c:number, p:boolean) => number) {
     outFn = outFn || (() => {});
     inFn = inFn || ((c) => [1, 2][c]);
     return new Arch({

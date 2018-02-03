@@ -11,6 +11,7 @@ export interface IDependencyOpExtension extends IOpExtension {
   alias(logger: DependencyLog, other: IOperand): void;
   constant(): boolean;
   setConstant(constant: boolean): void;
+  invalidate(): void;
 }
 
 export class DependencyOpExtension<T extends IOperand> implements IDependencyOpExtension {
@@ -36,95 +37,97 @@ export class DependencyOpExtension<T extends IOperand> implements IDependencyOpE
   }
 
   setConstant(constant: boolean) {}
+
+  invalidate() {
+    this.op.delete(DepOperand.DepKey);
+  }
 }
 
 export interface IDepOperand {
-  constant(): boolean;
   string(): string;
+  constant(): boolean;
+  special(): boolean;
 }
 
-interface IDepSet {
-  msg: string;
-  deps: DepOperand[];
+interface IDepEntry {
+  message: string;
+  dependencies: DepOperand[];
 }
 
-class DepSignature {
-  static map = new Map<string, DepSignature>();
-  static currentBranch = "";
+class DepMeta implements IDepOperand {
+  private static dbgNextId = 0;
+  private static constants = new Map<number, DepMeta>();
+  static create(op: IOperand) {
+    const dep = DependencyOpExtension.get(op);
+    const val = op.peek();
 
-  private items = new Map<string, DepSignature>();
-  private hashes = new Map<string, number>();
-  private branch: string;
+    if (dep.constant()) {
+      if (DepMeta.constants.has(val) == false) {
+        const newMeta = new DepMeta(val, true);
+        newMeta._name = op.string();
+        DepMeta.constants.set(val, newMeta);
+      }
+      return DepMeta.constants.get(val);
+    }
 
-  static find(msg: string, deps: DepOperand[]) {
-    const signature = new DepSignature(msg, deps);
-    const signatureKey = signature.toString();
-    if (DepSignature.map.has(signatureKey) == false)
-      DepSignature.map.set(signatureKey, signature);
-    return DepSignature.map.get(signatureKey);
+    const newMeta = new DepMeta(val, false, op.special());
+    newMeta._name = op.string();
+    return newMeta;
   }
 
-  public static setBranch(name: string) {
-    DepSignature.currentBranch = name;
+  private depEntry:IDepEntry[] = [];
+  private _name:string;
+
+  string() {
+    const id = [this._name];
+    //if (this.constant())
+      id.push(`=${this.value}`);
+      //id.push(` [${this.dbgId}]`);
+      /*if (this.constant)
+        id.push(' K');*/
+    //id.push(" ", this.depEntry.signature.toString());
+    return id.join("");
   }
 
-  private constructor(private msg: string, deps: DepOperand[]) {
-    this.branch = DepSignature.currentBranch;
-    /*deps.forEach((r) => {
-      r.depEntry.signature.items.forEach((v, k) => {
-        this.items.set(k, v);
-      });
-      r.depEntry.signature.hashes.forEach((v, k) => {
-        this.hashes.set(k, v);
-      });
-    });*/
-    deps.forEach((r) => {
-      let rSign = r.depEntry.signature;
-      if (rSign == undefined)
-        rSign = DepSignature.find(r.depEntry.msg, r.depEntry.dependencies);
-      this.items.set(r.name, rSign);
-      this.hashes.set(r.name, r.op.hashCode());
+  get value() {
+    return this._value;
+  }
+
+  constant() {
+    return this._constant;
+  }
+
+  special() {
+    return this._special;
+  }
+
+  dbgId: number;
+
+  private constructor(private _value: number, private _constant: boolean, private _special: boolean = false) {
+    this.dbgId = DepMeta.dbgNextId++;
+  }
+
+  addLink(msg: string, deps: DepOperand[]) {
+    this.depEntry.push({
+      message: msg,
+      dependencies: deps,
     });
   }
 
-  public toString() {
-    const str: string[] = [this.branch, this.msg];
-    const sorted = [...this.items.keys()].sort();
-    sorted.forEach((k) => {
-      str.push(`[${k}=${this.hashes.get(k)}]`);
+  forEachSet(cb: (deps: DepOperand[], msg: string) => void) {
+    this.depEntry.forEach((dep) => {
+      cb(dep.dependencies, dep.message);
     });
-    return str.join(",");
   }
 }
 
-class DepEntry {
-  static map = new Map<DepSignature, DepEntry>();
-
-  static find(msg: string, deps: IOperand[]): DepEntry {
-    const depOps: DepOperand[] = [];
-    deps.forEach((d) => depOps.push(DepOperand.find(d)));
-    const signature = DepSignature.find(msg, depOps);
-    //return new DepEntry(msg, depOps, signature);
-    if (DepEntry.map.has(signature) == false)
-      DepEntry.map.set(signature, new DepEntry(msg, depOps, signature));
-
-    return DepEntry.map.get(signature);
-  }
-
-  private constructor(
-    public msg: string,
-    public dependencies: DepOperand[],
-    public signature: DepSignature,
-  ) {}
-}
-
-class DepOperand implements IDepOperand, IOpExtension {
+class DepOperand {
   static DepKey = "DepOperand";
 
   static find(op: IOperand) {
     let depOp = op.ext<DepOperand>(DepOperand.DepKey);
     if (depOp == undefined) {
-      depOp = new DepOperand();
+      depOp = new DepOperand(DepMeta.create(op));
       op.join(depOp);
     }
 
@@ -134,98 +137,91 @@ class DepOperand implements IDepOperand, IOpExtension {
   key = DepOperand.DepKey;
 
   private _op: IOperand;
-  public depEntry: DepEntry;
   private dep: IDependencyOpExtension;
-  public name: string;
-  private _constant: boolean;
-  private _val: number = 0;
+
+  private constructor(public meta: DepMeta) {
+  }
 
   get op() { return this._op; }
 
   set op(v: IOperand) {
     this._op = v;
     this.dep = DependencyOpExtension.get(v);
-    this.name = v.string();
   }
 
   aliasTo(target: IOperand):()=>void {
-    const newDep = new DepOperand();
-    target.join(newDep);
-    newDep.depEntry = this.depEntry;
-    newDep.name = this.name;
     return () => {
-      newDep.bake();
+      const newDep = new DepOperand(this.meta);
+      target.join(newDep);
     };
   }
 
   link(msg: string, ...deps: IOperand[]):()=>void {
-    const newDep = new DepOperand();
-    newDep.updateDepEntry(msg, deps);
-    this.op.join(newDep);
+    const depOps: DepOperand[] = [];
+    deps.forEach((o) => {
+      depOps.push(DepOperand.find(o));
+    });
+
     return () => {
-      newDep.bake();
-    };
-  }
-
-  private constructor() {
-    this.updateDepEntry("", []);
-  }
-
-  private updateDepEntry(msg: string, deps: IOperand[]) {
-    this.depEntry = DepEntry.find(msg, deps);
-  }
-
-  private bake() {
-    this._val = this.op.hashCode();
-    this._constant = this.dep.constant();
-  }
-
-  constant() {
-    return this._constant;
-  }
-
-  string() {
-    const id = [this.name];
-    //if (this.constant())
-      id.push("=", this._val.toString());
-    //id.push(" ", this.depEntry.signature.toString());
-    return id.join("");
+        const newDep = new DepOperand(DepMeta.create(this.op));
+        newDep.meta.addLink(msg, depOps);
+        this.op.join(newDep);
+      };
   }
 
   forEachSet(cb: (deps: DepOperand[], msg: string, self: DepOperand) => void) {
-    if (this.depEntry.dependencies.length > 0)
-      cb(this.depEntry.dependencies, this.depEntry.msg, this);
+    this.meta.forEachSet((deps, msg) => cb(deps, msg, this));
+  }
+}
+
+class BranchCheckPoint {
+  private static entries = new Map<string, BranchCheckPoint>();
+
+  static apply(arch: Arch, taken: boolean, branchDep: IOperand) {
+    const s = BranchCheckPoint.signature(arch, taken, branchDep);
+    if (BranchCheckPoint.entries.has(s)) {
+      return BranchCheckPoint.entries.get(s).apply(arch);
+    }
+
+    BranchCheckPoint.entries.set(s, new BranchCheckPoint(arch));
+  }
+
+  private static signature(arch: Arch, taken: boolean, branchDep: IOperand) {
+    const status = arch.status();
+    const items: string[] = [taken.toString()];
+    status.forEach((v, k) => {
+      items.push(`${k}=${v.peek()}`);
+    });
+    return items.join(";");
+  }
+
+  private metaMap = new Map<IOperand, DepMeta>();
+
+  private constructor(arch: Arch) {
+    arch.status().forEach((op) => {
+      this.metaMap.set(op, DepOperand.find(op).meta);
+    });
+  }
+
+  private apply(arch: Arch) {
+    arch.status().forEach((op) => {
+      DepOperand.find(op).meta = this.metaMap.get(op);
+    });
   }
 }
 
 export class DependencyLog extends LoggerExtension {
   private postCmd:(()=>void)[] = [];
-  private statusDump:(string|number)[][] = [];
 
-  constructor(arch: Arch) {
+  constructor(private arch: Arch) {
     super(OpKey);
   }
 
   branch(taken: boolean, branchDep: IOperand): void {
-    const values:any[] = [];
-    this.statusDump.forEach((entry) => {
-      values.push(`${entry[0]}:${entry[1]}`);
-    });
-
-    DepSignature.setBranch(values.join(","));
+    BranchCheckPoint.apply(this.arch, taken, branchDep);
   }
 
   beforeExecute(arch: Arch): void {
-    this.statusDump.length = 0;
-
-    const status = arch.status();
-    const keys = [...status.keys()].sort();
-    keys.forEach((k) => {
-      const op = status.get(k);
-      const val = op.hashCode();
-      if (val != 0)
-        this.statusDump.push([k, val]);
-    });
   }
 
   afterExecute(arch: Arch, running: boolean): void {
@@ -264,13 +260,13 @@ export class DependencyLog extends LoggerExtension {
   serialize(serializer: IDependencySerializer, ...roots: IOperand[]) {
     const depRoots: DepOperand[] = [];
     roots.forEach((r) => depRoots.push(DepOperand.find(r)));
-    depRoots.forEach((r) => serializer.addRoot(r));
+    depRoots.forEach((r) => serializer.addRoot(r.meta));
     const ssa = this.buildSSA(depRoots);
     ssa.forEach((dep) => {
-      serializer.newEntry(dep);
+      serializer.newEntry(dep.meta);
       dep.forEachSet((deps, msg) => {
         serializer.newSet(msg);
-        deps.forEach((d) => serializer.addDep(d));
+        deps.forEach((d) => serializer.addDep(d.meta));
         serializer.endSet();
       });
       serializer.endEntry();

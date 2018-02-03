@@ -36,6 +36,10 @@ export class OutputOperand extends VoidOperand<OutputOperand> {
     this.outFn(this.channel, val);
   }
 
+  get(): number {
+    return Number.NaN;
+  }
+
   string(): string {
     return `OUT${this.channel}`;
   }
