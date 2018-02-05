@@ -9,6 +9,8 @@ class InputDepency extends DependencyOpExtension<InputOperand> {
 
 export class InputOperand extends VoidOperand<InputOperand> {
   private _hashCode = 0;
+  private consumed = true;
+  private curVal = 0;
 
   constructor(private channel: number, private inFn: (channel: number, peek: boolean) => number) {
     super();
@@ -24,16 +26,20 @@ export class InputOperand extends VoidOperand<InputOperand> {
   }
 
   peek(): number {
-    const peekVal = this.inFn(this.channel, true);
-    this._hashCode = peekVal;
-    return peekVal;
+    if (this.consumed) {
+      this._hashCode = this.curVal = this.inFn(this.channel, true);
+      this.consumed = false;
+      this.ext<InputDepency>(DependencyKey).invalidate();
+    }
+    return this.curVal;
   }
 
   get(): number {
-    const getVal = this.inFn(this.channel, false);
-    this._hashCode = getVal;
+    this.peek();
+    this.inFn(this.channel, false);
+    this.consumed = true;
     this.ext<InputDepency>(DependencyKey).invalidate();
-    return getVal;
+    return this.curVal;
   }
 
   string(): string {

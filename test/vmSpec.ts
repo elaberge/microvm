@@ -118,7 +118,7 @@ describe("VM", () => {
           "IN0=1 <=",
           "IN1=2 <=",
           "A=3 <= +(IN0=1, IN1=2)",
-          "OUT0=0 <= copy(A=3)",
+          "OUT0=NaN <= copy(A=3)",
         ]);
 
         const serializer = new StringDependencySerializer();
@@ -157,18 +157,12 @@ describe("VM", () => {
     return vm.run(logger)
       .then(() => {
         const expected = new Set([
-          "PC=0 <=",
           "IN1=-5 <=",
+          "PC=4 <=",
           "A=-4 <= + 1(IN1=-5)",
-          "PC=2 <= jcc (Y)(PC=0, A=-4)",
           "A=-3 <= + 1(A=-4)",
-          "PC=2 <= jcc (Y)(PC=2, A=-3)",
-          "A=-2 <= + 1(A=-3)",
-          "PC=2 <= jcc (Y)(PC=2, A=-2)",
-          "A=-1 <= + 1(A=-2)",
-          "PC=2 <= jcc (Y)(PC=2, A=-1)",
-          "A=0 <= + 1(A=-1)",
-          "PC=5 <= jcc (N)(PC=2, A=0)",
+          "PC=2 <= jcc (Y)(PC=4, A=-4)",
+          "PC=5 <= jcc (N)(PC=2, A=-3)",
         ]);
 
         const serializer = new StringDependencySerializer();

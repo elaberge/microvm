@@ -5,13 +5,12 @@ import { OpKey as DependencyKey, DependencyLog } from "../src/loggers/dependency
 import { StringDependencySerializer } from "../src/loggers/depserializers/string";
 import { DigraphDependencySerializer } from "../src/loggers/depserializers/digraph";
 
-const DigraphFile: string = "/tmp/t.dot";
-
 export interface ISettings {
   dumpProgram: boolean,
   logger: (arch: Arch, logger: ILogger) => void,
   postLog: (arch: Arch, logger: ILogger, self: ISettings) => void,
   labelFilter?: (tag: string) => string;
+  outFile?: string;
 }
 
 const SilentSetting: ISettings = {
@@ -66,9 +65,9 @@ const DigraphDepSetting = function (): ISettings {
     postLog: (arch, logger, self) => {
       const serializer = new DigraphDependencySerializer(self.labelFilter);
       depLog.serialize(serializer, arch.getPCReg());
-      console.log(serializer.toString());
-      if (DigraphFile)
-        serializer.write(DigraphFile);
+      //console.log(serializer.toString());
+      if (self.outFile)
+        serializer.write(self.outFile);
     },
   };
 }();

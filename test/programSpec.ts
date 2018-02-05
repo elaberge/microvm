@@ -36,6 +36,7 @@ describe("Program", () => {
     program: IProgram,
     expectedOut: IExpected[],
     keyPress: IKeyPress[],
+    outFile?: string,
   }
 
   const trivialTestSetup: ITestSetup = {
@@ -235,6 +236,7 @@ describe("Program", () => {
         const program = testSetup.program.program(arch);
         vm.load(program);
 
+        CurrentSetting.outFile = testSetup.outFile;
         CurrentSetting.labelFilter = joyCodeFilter("IN0=");
 
         if (CurrentSetting.dumpProgram) {
