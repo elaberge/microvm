@@ -9,6 +9,7 @@ import { Trivial } from "../src/programs/trivial";
 import { AnyInput } from "../src/programs/anyinput";
 import { SpecificInput } from "../src/programs/specificinput";
 import { InputSequence } from "../src/programs/inputsequence";
+import { RepeatInput } from "../src/programs/repeatinput";
 
 import { VM } from "../src/vm";
 import { Z80 } from "../src/archs/z80";
@@ -164,11 +165,51 @@ describe("Program", () => {
     ],
   };
 
+  const repeatInputTestSetup: ITestSetup = {
+    //only: true,
+    program: RepeatInput,
+    expectedOut: [
+      {
+        autoSkip: true,
+        0: RepeatInput.addr.repeatStr(),
+      },
+      {
+        autoSkip: false,
+        0: RepeatInput.addr.formatStr(),
+        1: 0x0200,
+      },
+      {
+        autoSkip: true,
+        counter: 2,
+        0: RepeatInput.addr.formatStr(),
+        1: 0x0200,
+      },
+      {
+        autoSkip: true,
+        counter: 2,
+        0: RepeatInput.addr.endStr(),
+        1: 0x0404,
+      },
+    ],
+    keyPress: [
+      // Junk
+      { key: JoyCodes.DOWN },
+      { key: JoyCodes.UP },
+      { key: JoyCodes.A },
+      { key: JoyCodes.START },
+      // Full
+      { key: JoyCodes.UP },
+      { key: JoyCodes.UP },
+      { key: JoyCodes.UP, autoDown: false },
+    ],
+  };
+
   const programMap = new Map<string, ITestSetup>([
     ["Trivial", trivialTestSetup],
     ["Any input", anyInputTestSetup],
     ["Specific input", specificInputTestSetup],
     ["Input sequence", inputSequenceTestSetup],
+    ["Repeat input", repeatInputTestSetup],
   ]);
 
   function joyCodeFilter(prefix: string): (t:string)=>string {
